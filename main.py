@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 import crud
 import schemas
@@ -8,9 +9,17 @@ import models
 from database import Base, engine, SessionLocal
 from auth import get_current_user, verify_admin
 
-Base.metadata.create_all(bind=engine)
-
 app = FastAPI(title="Mobile Store API")
+
+
+@app.on_event("startup")
+def startup():
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("Database Connected Successfully")
+    except SQLAlchemyError as e:
+        print("Database Connection Failed")
+        print(e)
 
 
 def get_db():
@@ -28,7 +37,7 @@ def home():
     return {"message": "Welcome to Mobile Store API"}
 
 
-#  AUTH 
+# ================= AUTH =================
 
 @app.post("/register", response_model=schemas.UserResponse)
 def register(
@@ -46,9 +55,7 @@ def login(
     return crud.login_user(db, user)
 
 
-# MOBILE 
-
-# Logged-in users can view mobiles
+# ================= MOBILE =================
 
 @app.get("/mobiles", response_model=list[schemas.MobileResponse])
 def get_all_mobiles(
@@ -67,12 +74,10 @@ def get_mobile(
     mobile = crud.get_mobile(db, mobile_id)
 
     if not mobile:
-        raise HTTPException(404, "Mobile not found")
+        raise HTTPException(status_code=404, detail="Mobile not found")
 
     return mobile
 
-
-# Admin only
 
 @app.post("/mobiles", response_model=schemas.MobileResponse)
 def create_mobile(
@@ -93,7 +98,7 @@ def update_mobile(
     updated = crud.update_mobile(db, mobile_id, mobile)
 
     if not updated:
-        raise HTTPException(404, "Mobile not found")
+        raise HTTPException(status_code=404, detail="Mobile not found")
 
     return updated
 
@@ -107,7 +112,7 @@ def delete_mobile(
     deleted = crud.delete_mobile(db, mobile_id)
 
     if not deleted:
-        raise HTTPException(404, "Mobile not found")
+        raise HTTPException(status_code=404, detail="Mobile not found")
 
     return {"message": "Mobile deleted successfully"}
 
@@ -121,7 +126,7 @@ def get_brand(
     return crud.get_mobile_by_brand(db, brand)
 
 
-# ORDERS 
+# ================= ORDERS =================
 
 @app.post("/orders", response_model=schemas.OrderResponse)
 def buy_mobile(
@@ -146,4 +151,3 @@ def all_orders(
     admin: models.User = Depends(verify_admin)
 ):
     return crud.get_all_orders(db)
-
